@@ -5,20 +5,22 @@ import os
 from dotenv import load_dotenv
 from colorama import init, Fore, Style
 from datetime import datetime
-from zoneinfo import ZoneInfo
-from keep_alive import keep_alive
+from zoneinfo import ZoneInfo  # Para sa Philippine time (Python 3.9+)
+from keep_alive import keep_alive  # Import keep_alive function
 
+# Initialize colorama para sa colored logs
 init(autoreset=True)
 
+# Load environment variables mula sa .env o Replit Secrets
 load_dotenv()
 
+# Environment variables
 API_URL = os.getenv("API_URL")
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-CHANNEL_ID = int(os.getenv("CHANNEL_ID"))
+CHANNEL_ID = int(os.getenv("CHANNEL_ID"))  # Siguraduhing integer
 
+# Discord intents setup
 intents = discord.Intents.default()
-
-message_cache = None
 
 # ======= LOGGING FUNCTIONS =======
 def log_info(message):
@@ -39,6 +41,7 @@ def log_api(message):
 def log_connection(message):
     print(f"{Fore.BLUE}[CONNECTION]{Style.RESET_ALL} {message}")
 
+# Listahan ng kulay na gagamitin para sa embed (magbabago-bago ang kulay)
 EMBED_COLORS = [
     discord.Color.blue(),
     discord.Color.green(),
@@ -47,6 +50,7 @@ EMBED_COLORS = [
     discord.Color.purple()
 ]
 
+# ======= DISCORD CLIENT CLASS =======
 class MyClient(discord.Client):
     async def setup_hook(self):
         self.loop.create_task(self.send_api_updates())
@@ -65,7 +69,6 @@ class MyClient(discord.Client):
         return None
 
     async def send_api_updates(self):
-        global message_cache
         await self.wait_until_ready()
         channel = self.get_channel(CHANNEL_ID)
 
@@ -75,12 +78,12 @@ class MyClient(discord.Client):
 
         log_info(f"Starting API updates in channel: {channel.name}")
 
-        if not message_cache:
-            async for msg in channel.history(limit=50):
-                if msg.author == self.user and msg.embeds:
-                    message_cache = msg
-                    log_info("Found an existing message to update.")
-                    break
+        message = None
+        async for msg in channel.history(limit=50):
+            if msg.author == self.user and msg.embeds:
+                message = msg
+                log_info("Found an existing message to update.")
+                break
 
         update_count = 0
 
@@ -94,6 +97,8 @@ class MyClient(discord.Client):
                 embed_color = EMBED_COLORS[update_count % len(EMBED_COLORS)]
                 update_count += 1
 
+                latency = round(self.latency * 1000)
+
                 embed = discord.Embed(
                     title="📊 Server Stats",
                     description="Real-time server statistics with auto-updates.",
@@ -106,14 +111,15 @@ class MyClient(discord.Client):
                 embed.add_field(name="✨ XP Collected", value=data.get('xp', 'N/A'), inline=True)
                 embed.add_field(name="🗒️ Crazy Jim's Task", value=data.get('crazy_jim', 'N/A'), inline=True)
                 embed.add_field(name="📢 Latest Broadcast", value=data.get('broadcast', 'N/A'), inline=True)
+                embed.add_field(name="📶 Latency", value=f"{latency} ms", inline=True)
                 embed.set_footer(text=f"Last Updated: {timestamp_24} (24H) / {timestamp_12} (12H) (PH Time)")
 
                 try:
-                    if message_cache:
-                        await message_cache.edit(embed=embed)
+                    if message:
+                        await message.edit(embed=embed)
                         log_success(f"Updated stats in #{channel.name} at {timestamp_24}")
                     else:
-                        message_cache = await channel.send(embed=embed)
+                        message = await channel.send(embed=embed)
                         log_success(f"Sent initial stats to #{channel.name}")
                 except Exception as e:
                     log_error(f"Failed to send/update message: {e}")
