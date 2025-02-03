@@ -104,8 +104,7 @@ class MyClient(discord.Client):
                     description="Real-time server statistics with auto-updates.",
                     color=embed_color
                 )
-                embed.add_field(name="👥 Players Online", value=data.get('online', 'N/A'), inline=False)
-                embed.add_field(name="📡 Latency", value=f"{latency} ms", inline=False)
+                embed.add_field(name="👥 Players Online", value=f"{data.get('online', 'N/A')}\n⏱️ Latency: {latency} ms", inline=False)
                 embed.add_field(name="🏆 Best Player", value=data.get('best_player', 'N/A'), inline=True)
                 embed.add_field(name="🌍 Best World", value=data.get('best_world', 'N/A'), inline=True)
                 embed.add_field(name="💎 Gems Collected", value=data.get('gems', 'N/A'), inline=True)
@@ -162,3 +161,4 @@ if __name__ == '__main__':
         client.run(BOT_TOKEN)
     except Exception as e:
         log_error(f"Critical error: {e}")
+VPN
