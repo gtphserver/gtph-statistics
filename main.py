@@ -18,6 +18,8 @@ CHANNEL_ID = int(os.getenv("CHANNEL_ID"))
 
 intents = discord.Intents.default()
 
+message_cache = None
+
 # ======= LOGGING FUNCTIONS =======
 def log_info(message):
     print(f"{Fore.CYAN}[INFO]{Style.RESET_ALL} {message}")
@@ -45,10 +47,9 @@ EMBED_COLORS = [
     discord.Color.purple()
 ]
 
-# ======= DISCORD CLIENT CLASS =======
 class MyClient(discord.Client):
     async def setup_hook(self):
-        self.bg_task = self.loop.create_task(self.send_api_updates())
+        self.loop.create_task(self.send_api_updates())
 
     async def fetch_api_data(self):
         try:
@@ -59,32 +60,27 @@ class MyClient(discord.Client):
                         return await response.json()
                     else:
                         log_warning(f"API request failed. Status Code: {response.status}")
-        except aiohttp.ClientError as e:
-            log_error(f"HTTP error while fetching API data: {e}")
         except Exception as e:
-            log_error(f"Unexpected error fetching API data: {e}")
+            log_error(f"Error fetching API data: {e}")
         return None
 
     async def send_api_updates(self):
+        global message_cache
         await self.wait_until_ready()
         channel = self.get_channel(CHANNEL_ID)
 
         if channel is None:
-            log_error("Channel not found. Check CHANNEL_ID and bot permissions.")
+            log_error("Channel not found. Check CHANNEL_ID at bot permissions.")
             return
 
         log_info(f"Starting API updates in channel: {channel.name}")
 
-        message = None
-        try:
+        if not message_cache:
             async for msg in channel.history(limit=50):
-                if msg.author.id == self.user.id and msg.embeds:
-                    message = msg
+                if msg.author == self.user and msg.embeds:
+                    message_cache = msg
                     log_info("Found an existing message to update.")
                     break
-        except discord.Forbidden:
-            log_error("Bot lacks permission to read channel history.")
-            return
 
         update_count = 0
 
@@ -113,21 +109,20 @@ class MyClient(discord.Client):
                 embed.set_footer(text=f"Last Updated: {timestamp_24} (24H) / {timestamp_12} (12H) (PH Time)")
 
                 try:
-                    if message:
-                        await message.edit(embed=embed)
+                    if message_cache:
+                        await message_cache.edit(embed=embed)
                         log_success(f"Updated stats in #{channel.name} at {timestamp_24}")
                     else:
-                        message = await channel.send(embed=embed)
+                        message_cache = await channel.send(embed=embed)
                         log_success(f"Sent initial stats to #{channel.name}")
-                except discord.HTTPException as e:
+                except Exception as e:
                     log_error(f"Failed to send/update message: {e}")
             else:
                 log_warning("No data received from API.")
 
             await asyncio.sleep(10)
 
-# ======= EVENT HANDLERS =======
-client = MyClient(intents=intents, reconnect=True)
+client = MyClient(intents=intents)
 
 @client.event
 async def on_ready():
@@ -142,7 +137,7 @@ async def on_ready():
 
 @client.event
 async def on_disconnect():
-    log_warning("Bot disconnected from Discord! Attempting to reconnect...")
+    log_warning("Bot disconnected from Discord!")
 
 @client.event
 async def on_resumed():
@@ -151,19 +146,11 @@ async def on_resumed():
 @client.event
 async def on_error(event, *args, **kwargs):
     log_error(f"An error occurred in event: {event}")
-    log_info("Attempting to recover...")
-    await asyncio.sleep(5)
-    try:
-        await client.close()
-        await client.start(BOT_TOKEN)
-    except Exception as e:
-        log_error(f"Reconnection failed: {e}")
 
-# ======= MAIN =======
 if __name__ == '__main__':
     try:
         log_info("Starting the bot...")
         keep_alive()
-        client.run(BOT_TOKEN, reconnect=True)
+        client.run(BOT_TOKEN)
     except Exception as e:
         log_error(f"Critical error: {e}")
