@@ -3,11 +3,13 @@ services:
     name: discord-bot
     env: python
     buildCommand: "pip install -r requirements.txt"
-    startCommand: "python main.py"
+    startCommand: "gunicorn keep_alive:app & python main.py"
     envVars:
       - key: API_URL
-        value: http://panel.gtps3.com:3371/stats/GTPH_api.json
+        value: ${API_URL}
       - key: BOT_TOKEN
-        value: MTMxMjE5MzkyMjk2MDk4NjMzNA.GKbj09.c355jU1IXJgZSCuTPFJEhdtyIrRMSwJFEdPt2E
+        value: ${BOT_TOKEN}
       - key: CHANNEL_ID
-        value: 1318593465738858497
+        value: ${CHANNEL_ID}
+      - key: PORT
+        value: 8080
