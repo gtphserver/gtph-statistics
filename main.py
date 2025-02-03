@@ -105,13 +105,13 @@ class MyClient(discord.Client):
                     color=embed_color
                 )
                 embed.add_field(name="👥 Players Online", value=data.get('online', 'N/A'), inline=False)
+                embed.add_field(name="📡 Latency", value=f"{latency} ms", inline=False)
                 embed.add_field(name="🏆 Best Player", value=data.get('best_player', 'N/A'), inline=True)
                 embed.add_field(name="🌍 Best World", value=data.get('best_world', 'N/A'), inline=True)
                 embed.add_field(name="💎 Gems Collected", value=data.get('gems', 'N/A'), inline=True)
                 embed.add_field(name="✨ XP Collected", value=data.get('xp', 'N/A'), inline=True)
                 embed.add_field(name="🗒️ Crazy Jim's Task", value=data.get('crazy_jim', 'N/A'), inline=True)
                 embed.add_field(name="📢 Latest Broadcast", value=data.get('broadcast', 'N/A'), inline=True)
-                embed.add_field(name="📶 Latency", value=f"{latency} ms", inline=True)
                 embed.set_footer(text=f"Last Updated: {timestamp_24} (24H) / {timestamp_12} (12H) (PH Time)")
 
                 try:
@@ -128,6 +128,7 @@ class MyClient(discord.Client):
 
             await asyncio.sleep(10)
 
+# ======= EVENT HANDLERS =======
 client = MyClient(intents=intents)
 
 @client.event
@@ -153,6 +154,7 @@ async def on_resumed():
 async def on_error(event, *args, **kwargs):
     log_error(f"An error occurred in event: {event}")
 
+# ======= MAIN =======
 if __name__ == '__main__':
     try:
         log_info("Starting the bot...")
