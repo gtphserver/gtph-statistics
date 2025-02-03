@@ -5,21 +5,17 @@ import os
 from dotenv import load_dotenv
 from colorama import init, Fore, Style
 from datetime import datetime
-from zoneinfo import ZoneInfo  # Para sa Philippine time (Python 3.9+)
-from keep_alive import keep_alive  # Import keep_alive function
+from zoneinfo import ZoneInfo
+from keep_alive import keep_alive
 
-# Initialize colorama para sa colored logs
 init(autoreset=True)
 
-# Load environment variables mula sa .env o Replit Secrets
 load_dotenv()
 
-# Environment variables
 API_URL = os.getenv("API_URL")
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-CHANNEL_ID = int(os.getenv("CHANNEL_ID"))  # Siguraduhing integer
+CHANNEL_ID = int(os.getenv("CHANNEL_ID"))
 
-# Discord intents setup
 intents = discord.Intents.default()
 
 # ======= LOGGING FUNCTIONS =======
@@ -41,7 +37,6 @@ def log_api(message):
 def log_connection(message):
     print(f"{Fore.BLUE}[CONNECTION]{Style.RESET_ALL} {message}")
 
-# Listahan ng kulay na gagamitin para sa embed (magbabago-bago ang kulay)
 EMBED_COLORS = [
     discord.Color.blue(),
     discord.Color.green(),
@@ -53,11 +48,9 @@ EMBED_COLORS = [
 # ======= DISCORD CLIENT CLASS =======
 class MyClient(discord.Client):
     async def setup_hook(self):
-        # I-schedule ang pag-update ng API data
-        self.loop.create_task(self.send_api_updates())
+        self.bg_task = self.loop.create_task(self.send_api_updates())
 
     async def fetch_api_data(self):
-        """Asynchronous API request gamit ang aiohttp."""
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.get(API_URL) as response:
@@ -66,43 +59,50 @@ class MyClient(discord.Client):
                         return await response.json()
                     else:
                         log_warning(f"API request failed. Status Code: {response.status}")
+        except aiohttp.ClientError as e:
+            log_error(f"HTTP error while fetching API data: {e}")
         except Exception as e:
-            log_error(f"Error fetching API data: {e}")
+            log_error(f"Unexpected error fetching API data: {e}")
         return None
 
     async def send_api_updates(self):
-        """Auto-update API data bawat 10 seconds (isang message lang ang ia-update)."""
         await self.wait_until_ready()
         channel = self.get_channel(CHANNEL_ID)
 
         if channel is None:
-            log_error("Channel not found. Check CHANNEL_ID at bot permissions.")
+            log_error("Channel not found. Check CHANNEL_ID and bot permissions.")
             return
 
         log_info(f"Starting API updates in channel: {channel.name}")
 
-        message = None  # Placeholder para sa iisang message na ia-update
-        update_count = 0  # Gamit para baguhin ang embed color
+        message = None
+        try:
+            async for msg in channel.history(limit=50):
+                if msg.author.id == self.user.id and msg.embeds:
+                    message = msg
+                    log_info("Found an existing message to update.")
+                    break
+        except discord.Forbidden:
+            log_error("Bot lacks permission to read channel history.")
+            return
+
+        update_count = 0
 
         while not self.is_closed():
             data = await self.fetch_api_data()
             if data:
-                # Kunin ang Philippine time gamit ang zoneinfo (Asia/Manila)
                 ph_time = datetime.now(ZoneInfo("Asia/Manila"))
                 timestamp_24 = ph_time.strftime("%Y-%m-%d %H:%M:%S")
                 timestamp_12 = ph_time.strftime("%Y-%m-%d %I:%M:%S %p")
 
-                # Pumili ng kulay batay sa update_count (magbabago-bago)
                 embed_color = EMBED_COLORS[update_count % len(EMBED_COLORS)]
                 update_count += 1
 
-                # Create Embed Message gamit ang dynamic color
                 embed = discord.Embed(
                     title="📊 Server Stats",
                     description="Real-time server statistics with auto-updates.",
                     color=embed_color
                 )
-                # "Players Online" na nasa taas para madaling makita
                 embed.add_field(name="👥 Players Online", value=data.get('online', 'N/A'), inline=False)
                 embed.add_field(name="🏆 Best Player", value=data.get('best_player', 'N/A'), inline=True)
                 embed.add_field(name="🌍 Best World", value=data.get('best_world', 'N/A'), inline=True)
@@ -110,29 +110,27 @@ class MyClient(discord.Client):
                 embed.add_field(name="✨ XP Collected", value=data.get('xp', 'N/A'), inline=True)
                 embed.add_field(name="🗒️ Crazy Jim's Task", value=data.get('crazy_jim', 'N/A'), inline=True)
                 embed.add_field(name="📢 Latest Broadcast", value=data.get('broadcast', 'N/A'), inline=True)
-                # Ipakita ang parehong 24H at 12H format
                 embed.set_footer(text=f"Last Updated: {timestamp_24} (24H) / {timestamp_12} (12H) (PH Time)")
 
                 try:
                     if message:
-                        await message.edit(embed=embed)  # I-edit ang existing message
+                        await message.edit(embed=embed)
                         log_success(f"Updated stats in #{channel.name} at {timestamp_24}")
                     else:
-                        message = await channel.send(embed=embed)  # I-send ang initial message
+                        message = await channel.send(embed=embed)
                         log_success(f"Sent initial stats to #{channel.name}")
-                except Exception as e:
+                except discord.HTTPException as e:
                     log_error(f"Failed to send/update message: {e}")
             else:
                 log_warning("No data received from API.")
 
-            await asyncio.sleep(10)  # Update every 10 seconds
+            await asyncio.sleep(10)
 
 # ======= EVENT HANDLERS =======
-client = MyClient(intents=intents)
+client = MyClient(intents=intents, reconnect=True)
 
 @client.event
 async def on_ready():
-    # Kapag naka-connect na, i-set ang presence
     await client.change_presence(
         activity=discord.Activity(
             type=discord.ActivityType.listening,
@@ -144,7 +142,7 @@ async def on_ready():
 
 @client.event
 async def on_disconnect():
-    log_warning("Bot disconnected from Discord!")
+    log_warning("Bot disconnected from Discord! Attempting to reconnect...")
 
 @client.event
 async def on_resumed():
@@ -153,12 +151,19 @@ async def on_resumed():
 @client.event
 async def on_error(event, *args, **kwargs):
     log_error(f"An error occurred in event: {event}")
+    log_info("Attempting to recover...")
+    await asyncio.sleep(5)
+    try:
+        await client.close()
+        await client.start(BOT_TOKEN)
+    except Exception as e:
+        log_error(f"Reconnection failed: {e}")
 
 # ======= MAIN =======
 if __name__ == '__main__':
     try:
         log_info("Starting the bot...")
-        keep_alive()  # Start ang keep-alive server gamit ang Waitress (production-ready)
-        client.run(BOT_TOKEN)
+        keep_alive()
+        client.run(BOT_TOKEN, reconnect=True)
     except Exception as e:
         log_error(f"Critical error: {e}")
