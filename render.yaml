@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: discord-bot
+    env: python
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "python main.py"
+    envVars:
+      - key: API_URL
+        value: http://panel.gtps3.com:3371/stats/GTPH_api.json
+      - key: BOT_TOKEN
+        value: MTMxMjE5MzkyMjk2MDk4NjMzNA.GKbj09.c355jU1IXJgZSCuTPFJEhdtyIrRMSwJFEdPt2E
+      - key: CHANNEL_ID
+        value: 1318593465738858497
