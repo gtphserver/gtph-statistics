@@ -2,6 +2,7 @@ import discord
 import aiohttp
 import asyncio
 import os
+import signal
 from dotenv import load_dotenv
 from colorama import init, Fore, Style
 from datetime import datetime
@@ -153,6 +154,14 @@ async def on_resumed():
 async def on_error(event, *args, **kwargs):
     log_error(f"An error occurred in event: {event}")
 
+# Signal handling
+async def shutdown(signal_received, frame):
+    log_warning(f"Received signal {signal_received}. Shutting down gracefully...")
+    await client.close()
+
+signal.signal(signal.SIGINT, lambda s, f: asyncio.create_task(shutdown(s, f)))
+signal.signal(signal.SIGTERM, lambda s, f: asyncio.create_task(shutdown(s, f)))
+
 # ======= MAIN =======
 if __name__ == '__main__':
     try:
@@ -161,4 +170,3 @@ if __name__ == '__main__':
         client.run(BOT_TOKEN)
     except Exception as e:
         log_error(f"Critical error: {e}")
-VPN
